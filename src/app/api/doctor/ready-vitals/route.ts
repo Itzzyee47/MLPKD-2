@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { requireRole } from "@/lib/auth/guards";
-import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
   await requireRole(["doctor"]);
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  // Use service role to avoid RLS edge-cases hiding lab-ready rows from doctors.
+  const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+  const { data, error } = await admin
     .from("vitals")
     .select("*, patient:profiles!vitals_patient_id_fkey(id,full_name,username)")
-    .eq("source", "lab")
+    .in("source", ["lab", "lab_tech"])
     .order("created_at", { ascending: false })
     .limit(100);
 
