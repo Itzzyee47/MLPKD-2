@@ -344,85 +344,52 @@ type QueueVitals = {
   created_at: string;
   notes?: string | null;
   patient?: { full_name?: string | null; username?: string | null; email?: string | null };
-  [key: string]: string | number | null | undefined | object;
 };
-
-const labFields = ["age","bp","sg","al","su","rbc","pc","pcc","ba","bgr","bu","sc","sod","pot","hemo","pcv","wc","rc","htn","dm","cad","appet","pe","ane"];
 
 function LabValidationPanel() {
   const [queue, setQueue] = useState<QueueVitals[]>([]);
   const [selected, setSelected] = useState("");
-  const [draft, setDraft] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
 
   async function loadQueue() {
-    const res = await fetch("/api/labs/queue", { cache: "no-store" });
+    const res = await fetch('/api/labs/queue', { cache: 'no-store' });
     const json = await res.json();
     if (res.ok) {
-      const next = json.queue ?? [];
-      setQueue(next);
-      if (next.length) {
-        const first = selected ? next.find((v: QueueVitals) => v.id === selected) ?? next[0] : next[0];
-        setSelected(first.id);
-        const d: Record<string, string> = {};
-        labFields.forEach((f) => (d[f] = String(first[f] ?? "")));
-        d.notes = String(first.notes ?? "");
-        setDraft(d);
-      } else {
-        setSelected("");
-        setDraft({});
-      }
+      setQueue(json.queue ?? []);
+      if ((json.queue ?? []).length && !selected) setSelected(json.queue[0].id);
     }
   }
 
-  useEffect(() => { void loadQueue(); }, []);
-
-  useEffect(() => {
-    const current = queue.find((v) => v.id === selected);
-    if (!current) return;
-    const d: Record<string, string> = {};
-    labFields.forEach((f) => (d[f] = String(current[f] ?? "")));
-    d.notes = String(current.notes ?? "");
-    setDraft(d);
-  }, [selected, queue]);
-
   async function markReady() {
     if (!selected) return;
-    const payload: Record<string, unknown> = { vitals_id: selected, notes: draft.notes ?? "" };
-    labFields.forEach((f) => {
-      const raw = draft[f];
-      payload[f] = ["rbc","pc","pcc","ba","htn","dm","cad","appet","pe","ane"].includes(f) ? raw : Number(raw);
-    });
-
-    const res = await fetch("/api/labs/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const res = await fetch('/api/labs/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vitals_id: selected }),
     });
     const json = await res.json();
-    setMessage(res.ok ? "Lab-updated vitals marked ready for doctor prediction." : (json.error ?? "Validation failed"));
-    if (res.ok) await loadQueue();
+    setMessage(res.ok ? 'Marked as lab-validated and ready for doctor prediction.' : (json.error ?? 'Validation failed'));
+    if (res.ok) {
+      setSelected('');
+      await loadQueue();
+    }
   }
+
+  useEffect(() => {
+    void loadQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <section className="health-panel">
-      <div className="panel-heading"><div><p>Lab workflow</p><h2>Validate, Update & Mark Ready</h2></div><ClipboardPlus size={22} /></div>
-      <p className="health-subtitle">Select nurse-submitted vitals, review/update values, then mark ready for doctor prediction.</p>
+      <div className="panel-heading"><div><p>Lab workflow</p><h2>Validate & Mark Ready</h2></div><ClipboardPlus size={22} /></div>
+      <p className="health-subtitle">Review nurse-submitted records and mark them ready for doctor prediction.</p>
       {queue.length === 0 ? <p className="form-message">No nurse records pending validation.</p> : (
         <>
           <label className="clinical-field wide"><span>Nurse submissions queue</span><select value={selected} onChange={(e) => setSelected(e.target.value)}>
-            {queue.map((v) => <option key={v.id} value={v.id}>{v.patient?.full_name ?? v.patient?.username ?? "Patient"} · {new Date(v.created_at).toLocaleString()}</option>)}
+            {queue.map((v) => <option key={v.id} value={v.id}>{v.patient?.full_name ?? v.patient?.username ?? 'Patient'} · {new Date(v.created_at).toLocaleString()}</option>)}
           </select></label>
-          <div className="profile-grid">
-            {labFields.map((f) => (
-              <label key={f}>
-                {f.toUpperCase()}
-                <input className="input" value={draft[f] ?? ""} onChange={(e) => setDraft((prev) => ({ ...prev, [f]: e.target.value }))} />
-              </label>
-            ))}
-            <label className="wide">Notes<textarea className="input" value={draft.notes ?? ""} onChange={(e) => setDraft((prev) => ({ ...prev, notes: e.target.value }))} /></label>
-          </div>
-          <button className="btn-primary" type="button" onClick={() => void markReady()}>Save Updates & Mark Ready</button>
+          <button className="btn-primary" type="button" onClick={() => void markReady()}>Mark Ready for Prediction</button>
         </>
       )}
       {message && <p className="form-message">{message}</p>}
@@ -431,17 +398,7 @@ function LabValidationPanel() {
 }
 
 export function LabWorkspace({ profile }: { profile: Profile }) {
-  const [tab, setTab] = useState("overview");
-  const [stats, setStats] = useState({ totalPatients: 0, withVitals: 0, withPredictions: 0, pendingPrediction: 0, pendingVitals: 0 });
-
-  useEffect(() => {
-    void (async () => {
-      const res = await fetch("/api/labs/analytics", { cache: "no-store" });
-      const json = await res.json();
-      if (res.ok) setStats(json);
-    })();
-  }, []);
-
+  const [tab, setTab] = useState('overview');
   return (
     <PortalFrame
       role="Lab Technician"
@@ -449,33 +406,19 @@ export function LabWorkspace({ profile }: { profile: Profile }) {
       activeTab={tab}
       onTab={setTab}
       tabs={[
-        { id: "overview", label: "Overview", icon: <BarChart3 size={17} /> },
-        { id: "validate", label: "Validate", icon: <ClipboardPlus size={17} /> },
-        { id: "profile", label: "Profile", icon: <UserRound size={17} /> },
+        { id: 'overview', label: 'Overview', icon: <BarChart3 size={17} /> },
+        { id: 'validate', label: 'Validate', icon: <ClipboardPlus size={17} /> },
+        { id: 'profile', label: 'Profile', icon: <UserRound size={17} /> },
       ]}
       rightRail={<RightRail profile={profile} items={[
-        { title: "Patients", meta: `${stats.totalPatients} in system` },
-        { title: "Vitals taken", meta: `${stats.withVitals} patients` },
-        { title: "Predictions done", meta: `${stats.withPredictions} patients` },
+        { title: 'Workflow', meta: 'Nurse → Lab → Doctor' },
+        { title: 'Validation', meta: 'Mark records ready for prediction' },
+        { title: 'Role', meta: 'Lab technician station' },
       ]} />}
     >
-      {tab === "overview" && (
-        <div className="workspace-stack">
-          <HeroPanel title="Lab queue and prediction readiness" subtitle="Review patient progress from vitals capture to prediction readiness and outcome generation." action="Open Validation" />
-          <div className="stat-row">
-            <StatCard icon={<UsersRound size={18} />} label="Patients" value={stats.totalPatients} />
-            <StatCard icon={<ClipboardPlus size={18} />} label="Vitals Taken" value={stats.withVitals} />
-            <StatCard icon={<ShieldPlus size={18} />} label="Predictions Done" value={stats.withPredictions} />
-            <StatCard icon={<Activity size={18} />} label="Awaiting Prediction" value={stats.pendingPrediction} />
-          </div>
-          <section className="health-panel">
-            <h3>Pipeline Snapshot</h3>
-            <p className="health-subtitle">{stats.pendingVitals} patients have no vitals yet. {stats.pendingPrediction} have vitals but no prediction.</p>
-          </section>
-        </div>
-      )}
-      {tab === "validate" && <LabValidationPanel />}
-      {tab === "profile" && <ProfilePanel profile={profile} />}
+      {tab === 'overview' && <HeroPanel title="Validate incoming clinical data" subtitle="Review nurse submissions and release lab-validated records for doctor prediction." action="Open Validation" />}
+      {tab === 'validate' && <LabValidationPanel />}
+      {tab === 'profile' && <ProfilePanel profile={profile} />}
     </PortalFrame>
   );
 }
