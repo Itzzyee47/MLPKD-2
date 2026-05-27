@@ -21,7 +21,8 @@ import Link from "next/link";
 import { PredictionForm } from "@/components/forms/prediction-form";
 import { RiskBar, RiskPie, Trend } from "@/components/charts/risk-charts";
 import { VitalsForm } from "@/components/forms/vitals-form";
-import DoctorRegisterPage from "@/app/doctor/register/page";
+import DoctorUserManagement from "@/components/portal/doctor-user-management";
+import { DoctorRegisterForm } from "@/app/doctor/register/page";
 
 
 
@@ -185,6 +186,35 @@ function RightRail({ profile, items }: { profile: Profile; items: { title: strin
   );
 }
 
+
+
+function MedicalPersonnelPanel() {
+  const [tab, setTab] = useState<"registration" | "user_management">("registration");
+
+  return (
+    <div className="workspace-stack">
+      <div className="inline-flex rounded-xl bg-[--color-bg] p-1">
+        <button
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "registration" ? "bg-white shadow" : "text-[--color-muted]"}`}
+          onClick={() => setTab("registration")}
+          type="button"
+        >
+          Registration Form
+        </button>
+        <button
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "user_management" ? "bg-white shadow" : "text-[--color-muted]"}`}
+          onClick={() => setTab("user_management")}
+          type="button"
+        >
+          Users Management
+        </button>
+      </div>
+
+      {tab === "registration" ? <DoctorRegisterForm /> : <DoctorUserManagement />}
+    </div>
+  );
+}
+
 function ProfilePanel({ profile }: { profile: Profile }) {
   const [full_name, setName] = useState(profile.full_name ?? "");
   const [sex, setSex] = useState<"male" | "female" | "other">(profile.sex ?? "other");
@@ -291,7 +321,7 @@ export function DoctorWorkspace({
       )}
       {tab === "prediction" && <PredictionForm patients={patients} />}
       {tab === "profile" && <ProfilePanel profile={profile} />}
-      {tab === "register_personnel" && <DoctorRegisterPage />}
+      {tab === "register_personnel" && <MedicalPersonnelPanel />}
     </PortalFrame>
   );
 }
