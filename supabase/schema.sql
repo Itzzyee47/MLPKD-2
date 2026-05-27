@@ -66,7 +66,32 @@ alter table public.profiles enable row level security;
 alter table public.predictions enable row level security;
 alter table public.vitals enable row level security;
 
+create or replace function public.is_care_team_member(user_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = user_id
+      and role in ('doctor','nurse','lab_tech')
+  );
+$$;
+
+drop policy if exists "profiles self read" on public.profiles;
+drop policy if exists "profiles care team patient read" on public.profiles;
+drop policy if exists "profiles self write" on public.profiles;
+drop policy if exists "predictions doctor read" on public.predictions;
+drop policy if exists "predictions doctor insert" on public.predictions;
+drop policy if exists "vitals role read" on public.vitals;
+drop policy if exists "vitals nurse lab insert" on public.vitals;
+
 create policy "profiles self read" on public.profiles for select using (auth.uid() = id);
+create policy "profiles care team patient read" on public.profiles for select using (
+  role = 'patient' and public.is_care_team_member(auth.uid())
+);
 create policy "profiles self write" on public.profiles for update using (auth.uid() = id);
 
 create policy "predictions doctor read" on public.predictions for select using (
@@ -85,3 +110,44 @@ create policy "vitals role read" on public.vitals for select using (
 create policy "vitals nurse lab insert" on public.vitals for insert with check (
   entered_by = auth.uid() and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('nurse','lab_tech'))
 );
+
+-- =========================================================
+-- Default users seed (profiles table)
+-- IMPORTANT:
+-- 1) Supabase Auth sign-in uses auth.users, not profiles.password_hash.
+-- 2) Create auth users first in Supabase Auth with these emails:
+--    doctor@mlpkd.local, nurse@mlpkd.local, lab@mlpkd.local, patient@mlpkd.local
+-- 3) This seed maps profiles.id from auth.users.id by email (no FK error).
+-- 4) This block is idempotent (safe to re-run).
+-- =========================================================
+
+with seed(email, username, full_name, sex, address, plain_password, role) as (
+  values
+    ('doctor@mlpkd.local', 'doctor_joe', 'Jhon Joe', 'male', 'Main Clinic, Floor 2', 'Doctor@123', 'doctor'),
+    ('nurse@mlpkd.local', 'nurse_jane', 'Jane Doe', 'female', 'Ward B, Station 4', 'Nurse@123', 'nurse'),
+    ('lab@mlpkd.local', 'lab_default', 'Default Lab Tech', 'other', 'Diagnostics Unit', 'Lab@123', 'lab_tech'),
+    ('patient@mlpkd.local', 'patient_default', 'Default Patient', 'female', 'Community Zone 1', 'Patient@123', 'patient')
+)
+insert into public.profiles (
+  id, email, username, full_name, sex, address, password_hash, role
+)
+select
+  u.id,
+  s.email,
+  s.username,
+  s.full_name,
+  s.sex,
+  s.address,
+  crypt(s.plain_password, gen_salt('bf')),
+  s.role
+from seed s
+join auth.users u on lower(u.email) = lower(s.email)
+on conflict (id) do update
+set
+  email = excluded.email,
+  username = excluded.username,
+  full_name = excluded.full_name,
+  sex = excluded.sex,
+  address = excluded.address,
+  password_hash = excluded.password_hash,
+  role = excluded.role;

@@ -3,7 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function fetchPatients() {
   const supabase = await createClient();
-  const { data } = await supabase.from("profiles").select("id, full_name, username").eq("role", "patient");
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, username, sex, address, created_at")
+    .eq("role", "patient")
+    .order("created_at", { ascending: false });
   return data ?? [];
 }
 
