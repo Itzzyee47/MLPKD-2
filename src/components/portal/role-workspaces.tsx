@@ -330,7 +330,7 @@ export function DoctorWorkspace({
           </div>
         </div>
       )}
-      {tab === "prediction" && <PredictionForm patients={patients} />}
+      {tab === "prediction" && <PredictionForm />}
       {tab === "profile" && <ProfilePanel profile={profile} />}
       {tab === "register_personnel" && <MedicalPersonnelPanel />}
     </PortalFrame>
