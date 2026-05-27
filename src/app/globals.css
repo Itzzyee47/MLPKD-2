@@ -1,0 +1,27 @@
+﻿@import "tailwindcss";
+
+:root {
+  --color-primary: #063d34;
+  --color-secondary: #0a8a74;
+  --color-accent: #0fbfa0;
+  --color-bg: #f7fdfb;
+  --color-muted: #6b7b78;
+}
+
+body {
+  background: linear-gradient(180deg, #f7fdfb 0%, #e8f5f1 100%);
+  color: #0f241f;
+}
+
+.btn-primary {
+  @apply px-4 py-2 rounded-xl text-white font-medium;
+  background: linear-gradient(90deg, var(--color-secondary), var(--color-accent));
+}
+
+.card {
+  @apply rounded-2xl bg-white shadow-sm p-5;
+}
+
+.input {
+  @apply border rounded-xl px-3 py-2 w-full;
+}
