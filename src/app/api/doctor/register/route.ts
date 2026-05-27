@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireRole } from "@/lib/auth/guards";
 import { registerSchema } from "@/lib/validators";
-import { createClient } from "@/lib/supabase/server";
 
 const doctorPersonnelSchema = registerSchema
   .pick({
@@ -19,33 +19,27 @@ const doctorPersonnelSchema = registerSchema
   });
 
 export async function POST(req: Request) {
-  const allowed = ["doctor"] as const;
-
-  // Ensure only doctors can access this endpoint
-  await requireRole([...allowed]);
+  await requireRole(["doctor"]);
 
   const body = await req.json();
   const parsed = doctorPersonnelSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  // Create the auth user
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
+  const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+  const { data, error } = await admin.auth.admin.createUser({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: {
-      data: { username: parsed.data.username, role: parsed.data.role },
-    },
+    email_confirm: true,
+    user_metadata: { username: parsed.data.username, role: parsed.data.role },
   });
 
   if (error || !data.user) return NextResponse.json({ error: error?.message ?? "Registration failed" }, { status: 400 });
 
-  // Persist profile row (including role)
-  // That route uses bcryptjs hashing; we replicate it here to keep stored credentials consistent.
   const { hash } = await import("bcryptjs");
   const passwordHashValue = await hash(parsed.data.password, 12);
 
-  const { error: profileErr } = await supabase.from("profiles").upsert({
+  const { error: profileErr } = await admin.from("profiles").upsert({
     id: data.user.id,
     email: parsed.data.email,
     username: parsed.data.username,
