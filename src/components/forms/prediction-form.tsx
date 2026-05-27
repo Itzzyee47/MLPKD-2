@@ -1,134 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BrainCircuit, Save } from "lucide-react";
 
-const defaults = {
-  age: 65,
-  bp: 140,
-  sg: 1.01,
-  al: 3,
-  su: 2,
-  rbc: "abnormal",
-  pc: "abnormal",
-  pcc: "present",
-  ba: "notpresent",
-  bgr: 180,
-  bu: 58,
-  sc: 3.5,
-  sod: 132,
-  pot: 5.2,
-  hemo: 8.5,
-  pcv: 26,
-  wc: 11000,
-  rc: 3.1,
-  htn: "yes",
-  dm: "yes",
-  cad: "yes",
-  appet: "poor",
-  pe: "yes",
-  ane: "yes",
+type ReadyVitals = {
+  id: string;
+  patient_id: string;
+  created_at: string;
+  patient?: { id: string; full_name?: string | null; username?: string | null };
+  [key: string]: string | number | null | undefined | object;
 };
-
-const groups = [
-  { title: "Vitals", fields: ["age", "bp"] },
-  { title: "Renal Markers", fields: ["sg", "al", "su", "bu", "sc"] },
-  { title: "Chemistry", fields: ["bgr", "sod", "pot", "hemo"] },
-  { title: "Symptoms", fields: ["htn", "dm", "cad", "appet", "pe", "ane"] },
-];
 
 const labels: Record<string, string> = {
-  age: "Age",
-  bp: "Blood pressure",
-  sg: "Specific gravity",
-  al: "Albumin",
-  su: "Sugar",
-  bu: "Blood urea",
-  sc: "Serum creatinine",
-  bgr: "Blood glucose",
-  sod: "Sodium",
-  pot: "Potassium",
-  hemo: "Hemoglobin",
-  htn: "Hypertension",
-  dm: "Diabetes",
-  cad: "Heart disease",
-  appet: "Appetite",
-  pe: "Edema",
-  ane: "Anemia",
+  age: "Age", bp: "Blood pressure", sg: "Specific gravity", al: "Albumin", su: "Sugar", rbc: "RBC", pc: "Pus cells", pcc: "Pus clumps", ba: "Bacteria",
+  bgr: "Blood glucose", bu: "Blood urea", sc: "Serum creatinine", sod: "Sodium", pot: "Potassium", hemo: "Hemoglobin", pcv: "PCV", wc: "WBC", rc: "RBC count",
+  htn: "Hypertension", dm: "Diabetes", cad: "CAD", appet: "Appetite", pe: "Edema", ane: "Anemia",
 };
 
-function Field({ name, value }: { name: string; value: string | number }) {
-  return (
-    <label className="clinical-field">
-      <span>{labels[name]}</span>
-      {typeof value === "string" ? (
-        <input name={name} defaultValue={value} />
-      ) : (
-        <input name={name} type="number" step="any" defaultValue={value} />
-      )}
-    </label>
-  );
-}
+const fields = ["age","bp","sg","al","su","rbc","pc","pcc","ba","bgr","bu","sc","sod","pot","hemo","pcv","wc","rc","htn","dm","cad","appet","pe","ane"];
 
-export function PredictionForm({ patients }: { patients: { id: string; full_name: string | null; username: string }[] }) {
-  const [result, setResult] = useState<{ risk: number; diagnosis: string; recommendation: string } | null>(null);
+export function PredictionForm() {
+  const [readyVitals, setReadyVitals] = useState<ReadyVitals[]>([]);
+  const [selectedVitalsId, setSelectedVitalsId] = useState("");
+  const [result, setResult] = useState<{ risk: number; diagnosis: string; recommendation: string; risk_tier?: string; confidence?: string; model_used?: string } | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  async function onSubmit(formData: FormData) {
-    const payload = { ...defaults, ...Object.fromEntries(formData.entries()) };
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/doctor/ready-vitals", { cache: "no-store" });
+      const json = await res.json();
+      if (res.ok) {
+        setReadyVitals(json.ready ?? []);
+        if ((json.ready ?? []).length > 0) setSelectedVitalsId(json.ready[0].id);
+      }
+    })();
+  }, []);
+
+  const selected = useMemo(() => readyVitals.find((v) => v.id === selectedVitalsId), [readyVitals, selectedVitalsId]);
+
+  async function submitPrediction() {
+    if (!selected) return;
+    const payload = { patient_id: selected.patient_id } as Record<string, unknown>;
+    fields.forEach((f) => { payload[f] = selected[f] ?? undefined; });
+
+    setLoading(true);
     const res = await fetch("/api/predictions", { method: "POST", body: JSON.stringify(payload) });
     const json = await res.json();
-    if (!res.ok) return setError("Unable to save prediction");
+    setLoading(false);
+    if (!res.ok) return setError(json.error ?? "Unable to save prediction");
     setError("");
     setResult(json.result);
   }
 
   return (
-    <form action={onSubmit} className="health-panel clinical-form">
-      <div className="panel-heading">
-        <div>
-          <p>Doctor workflow</p>
-          <h2>New CKD Prediction</h2>
-        </div>
-        <BrainCircuit size={22} />
-      </div>
-      <label className="clinical-field wide">
-        <span>Patient</span>
-        <select name="patient_id" required>
-          {patients.map((patient) => (
-            <option key={patient.id} value={patient.id}>
-              {patient.full_name ?? patient.username}
-            </option>
-          ))}
-        </select>
-      </label>
-      {groups.map((group) => (
-        <fieldset key={group.title} className="clinical-group">
-          <legend>{group.title}</legend>
-          <div>
-            {group.fields.map((field) => (
-              <Field key={field} name={field} value={defaults[field as keyof typeof defaults]} />
-            ))}
-          </div>
-        </fieldset>
-      ))}
-      <div className="hidden">
-        {["rbc", "pc", "pcc", "ba", "pcv", "wc", "rc"].map((field) => (
-          <input key={field} name={field} defaultValue={String(defaults[field as keyof typeof defaults])} />
-        ))}
-      </div>
-      <button className="btn-primary" type="submit">
-        <Save size={16} />
-        Compute & Save
-      </button>
-      {error && <p className="form-message error">{error}</p>}
-      {result && (
-        <div className="prediction-result">
-          <strong>{result.diagnosis}</strong>
-          <span>{result.risk}% risk</span>
-          <p>{result.recommendation}</p>
-        </div>
+    <section className="health-panel clinical-form">
+      <div className="panel-heading"><div><p>Doctor workflow</p><h2>Run CKD Prediction (Lab-ready queue)</h2></div><BrainCircuit size={22} /></div>
+      <p className="health-subtitle">Flow: Nurse records vitals → Lab validates and submits → Doctor predicts from ready records.</p>
+
+      {readyVitals.length === 0 ? <p className="form-message">No lab-ready records yet. Ask lab technician to submit patient analysis.</p> : (
+        <>
+          <label className="clinical-field wide"><span>Select Lab-Ready Record</span><select value={selectedVitalsId} onChange={(e)=>setSelectedVitalsId(e.target.value)}>
+            {readyVitals.map((v) => <option key={v.id} value={v.id}>{v.patient?.full_name ?? v.patient?.username ?? "Patient"} · {new Date(v.created_at).toLocaleString()}</option>)}
+          </select></label>
+          {selected && <div className="profile-grid">{fields.map((f)=><label key={f}><span className="input-label">{labels[f] ?? f}</span><input className="input" disabled value={String(selected[f] ?? "-")} /></label>)}</div>}
+          <button className="btn-primary" type="button" onClick={() => void submitPrediction()} disabled={loading}><Save size={16} /> {loading ? "Running prediction..." : "Run External API Prediction"}</button>
+        </>
       )}
-    </form>
+
+      {error && <p className="form-message error">{error}</p>}
+      {result && <div className="prediction-result"><strong>{result.diagnosis}</strong><span>{result.risk}% risk · {result.risk_tier ?? "Unknown tier"}</span><p>{result.recommendation}</p><small>Model: {result.model_used ?? "N/A"} · Confidence: {result.confidence ?? "N/A"}</small></div>}
+    </section>
   );
 }
