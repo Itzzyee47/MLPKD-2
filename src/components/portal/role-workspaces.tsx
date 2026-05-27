@@ -220,13 +220,16 @@ function ProfilePanel({ profile }: { profile: Profile }) {
   const [sex, setSex] = useState<"male" | "female" | "other">(profile.sex ?? "other");
   const [address, setAddress] = useState(profile.address ?? "");
   const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function save() {
+    setSaving(true);
     const res = await fetch("/api/profile", {
       method: "PATCH",
       body: JSON.stringify({ full_name, sex, address }),
     });
     setMsg(res.ok ? "Profile updated." : "Update failed.");
+    setSaving(false);
   }
 
   return (
@@ -256,8 +259,8 @@ function ProfilePanel({ profile }: { profile: Profile }) {
           <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
         </label>
       </div>
-      <button className="btn-primary" onClick={save}>
-        Save Profile
+      <button className="btn-primary" onClick={save} disabled={saving}>
+        {saving ? "Saving profile..." : "Save Profile"}
       </button>
       {msg && <p className="form-message">{msg}</p>}
     </section>
@@ -354,6 +357,7 @@ function LabValidationPanel() {
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   async function loadQueue() {
     const res = await fetch("/api/labs/queue", { cache: "no-store" });
@@ -394,6 +398,7 @@ function LabValidationPanel() {
       payload[f] = ["rbc","pc","pcc","ba","htn","dm","cad","appet","pe","ane"].includes(f) ? raw : Number(raw);
     });
 
+    setSubmitting(true);
     const res = await fetch("/api/labs/validate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -402,6 +407,7 @@ function LabValidationPanel() {
     const json = await res.json();
     setMessage(res.ok ? "Lab-updated vitals marked ready for doctor prediction." : (json.error ?? "Validation failed"));
     if (res.ok) await loadQueue();
+    setSubmitting(false);
   }
 
   return (
@@ -422,7 +428,7 @@ function LabValidationPanel() {
             ))}
             <label className="wide">Notes<textarea className="input" value={draft.notes ?? ""} onChange={(e) => setDraft((prev) => ({ ...prev, notes: e.target.value }))} /></label>
           </div>
-          <button className="btn-primary" type="button" onClick={() => void markReady()}>Save Updates & Mark Ready</button>
+          <button className="btn-primary" type="button" onClick={() => void markReady()} disabled={submitting}>{submitting ? "Saving..." : "Save Updates & Mark Ready"}</button>
         </>
       )}
       {message && <p className="form-message">{message}</p>}

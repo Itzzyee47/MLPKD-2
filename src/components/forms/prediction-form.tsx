@@ -24,6 +24,7 @@ export function PredictionForm() {
   const [selectedVitalsId, setSelectedVitalsId] = useState("");
   const [result, setResult] = useState<{ risk: number; diagnosis: string; recommendation: string; risk_tier?: string; confidence?: string; model_used?: string } | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -43,8 +44,10 @@ export function PredictionForm() {
     const payload = { patient_id: selected.patient_id } as Record<string, unknown>;
     fields.forEach((f) => { payload[f] = selected[f] ?? undefined; });
 
+    setLoading(true);
     const res = await fetch("/api/predictions", { method: "POST", body: JSON.stringify(payload) });
     const json = await res.json();
+    setLoading(false);
     if (!res.ok) return setError(json.error ?? "Unable to save prediction");
     setError("");
     setResult(json.result);
@@ -61,7 +64,7 @@ export function PredictionForm() {
             {readyVitals.map((v) => <option key={v.id} value={v.id}>{v.patient?.full_name ?? v.patient?.username ?? "Patient"} · {new Date(v.created_at).toLocaleString()}</option>)}
           </select></label>
           {selected && <div className="profile-grid">{fields.map((f)=><label key={f}><span className="input-label">{labels[f] ?? f}</span><input className="input" disabled value={String(selected[f] ?? "-")} /></label>)}</div>}
-          <button className="btn-primary" type="button" onClick={() => void submitPrediction()}><Save size={16} /> Run External API Prediction</button>
+          <button className="btn-primary" type="button" onClick={() => void submitPrediction()} disabled={loading}><Save size={16} /> {loading ? "Running prediction..." : "Run External API Prediction"}</button>
         </>
       )}
 

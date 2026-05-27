@@ -1,6 +1,7 @@
 "use client";
 
 import { Save } from "lucide-react";
+import { useState } from "react";
 
 const defaults = {
   age: 65,
@@ -78,7 +79,9 @@ function Field({ name, value }: { name: string; value: string | number }) {
 }
 
 export function VitalsForm({ patients }: { patients: { id: string; full_name: string | null; username: string }[] }) {
+  const [loading, setLoading] = useState(false);
   async function onSubmit(formData: FormData) {
+    setLoading(true);
     await fetch("/api/vitals", { method: "POST", body: JSON.stringify(Object.fromEntries(formData.entries())) });
     window.location.reload();
   }
@@ -116,8 +119,8 @@ export function VitalsForm({ patients }: { patients: { id: string; full_name: st
         <span>Notes</span>
         <textarea name="notes" placeholder="Add patient observations" />
       </label>
-      <button className="btn-primary" type="submit">
-        Save Vitals
+      <button className="btn-primary" type="submit" disabled={loading}>
+        {loading ? "Saving vitals..." : "Save Vitals"}
       </button>
     </form>
   );
