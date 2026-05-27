@@ -8,12 +8,34 @@ const deleteSchema = z.object({
   id: z.string().uuid(),
 });
 
-export async function GET() {
+export async function GET(req: Request) {
   await requireRole(["doctor"]);
 
   const supabase = await createClient();
+  const { searchParams } = new URL(req.url);
+  const userId = searchParams.get("userId");
 
-  // List all profiles except doctors
+  if (userId) {
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("id,full_name,username,role")
+      .eq("id", userId)
+      .single();
+
+    if (userError) return NextResponse.json({ error: userError.message }, { status: 400 });
+
+    const { data: predictions, error: predictionError } = await supabase
+      .from("predictions")
+      .select("id,risk_score,diagnosis,recommendation,created_at")
+      .eq("patient_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (predictionError) return NextResponse.json({ error: predictionError.message }, { status: 400 });
+
+    return NextResponse.json({ user, predictions: predictions ?? [] });
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .select("id,email,username,full_name,role,created_at")
@@ -33,16 +55,10 @@ export async function DELETE(req: Request) {
 
   const { id } = parsed.data;
 
-  // Use service role to delete both auth user + profile row
-  const admin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
-  // First delete auth user (will cascade delete profile due to FK on profiles.id -> auth.users(id) ON DELETE CASCADE)
   const { error: authErr } = await admin.auth.admin.deleteUser(id);
   if (authErr) return NextResponse.json({ error: authErr.message }, { status: 400 });
 
   return NextResponse.json({ ok: true });
 }
-
