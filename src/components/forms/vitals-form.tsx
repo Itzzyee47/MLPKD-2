@@ -4,24 +4,24 @@ import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const defaults = {
-  age: 65,
-  bp: 140,
-  sg: 1.01,
-  al: 3,
-  su: 2,
+  age: 0,
+  bp: 0,
+  sg: 0,
+  al: 0,
+  su: 0,
   rbc: "abnormal",
   pc: "abnormal",
   pcc: "present",
   ba: "notpresent",
-  bgr: 180,
-  bu: 58,
-  sc: 3.5,
-  sod: 132,
-  pot: 5.2,
-  hemo: 8.5,
-  pcv: 26,
-  wc: 11000,
-  rc: 3.1,
+  bgr: 0,
+  bu: 0,
+  sc: 0,
+  sod: 0,
+  pot: 0,
+  hemo: 0,
+  pcv: 0,
+  wc: 0,
+  rc: 0,
   htn: "yes",
   dm: "yes",
   cad: "yes",
@@ -65,18 +65,63 @@ const labels: Record<string, string> = {
   ane: "Anemia",
 };
 
-function Field({ name, value }: { name: string; value: string | number }) {
+const YES_NO = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+
+const GOOD_POOR = [
+  { value: "good", label: "Good" },
+  { value: "poor", label: "Poor" },
+];
+
+const NORMAL_ABNORMAL = [
+  { value: "normal", label: "Normal" },
+  { value: "abnormal", label: "Abnormal" },
+];
+
+const PRESENT_NOTPRESENT = [
+  { value: "present", label: "Present" },
+  { value: "notpresent", label: "Not present" },
+];
+
+
+function Field({
+  name,
+  value,
+  options,
+}: {
+  name: string;
+  value: string | number;
+  options?: { value: string; label: string }[];
+}) {
+  const resolvedValue = value ?? "";
+  const resolvedString = typeof resolvedValue === "number" ? String(resolvedValue) : resolvedValue;
+
   return (
     <label className="clinical-field">
       <span>{labels[name]}</span>
-      {typeof value === "string" ? (
-        <input name={name} defaultValue={value} />
+      {options ? (
+        <select name={name} defaultValue={resolvedString || ""}>
+          <option value="" disabled>
+            Select...
+          </option>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      ) : typeof value === "string" ? (
+        <input name={name} defaultValue={resolvedString || ""} placeholder="" />
       ) : (
-        <input name={name} type="number" step="any" defaultValue={value} />
+        <input name={name} type="number" step="any" defaultValue={resolvedValue === "" ? "" : Number(resolvedValue)} />
       )}
     </label>
   );
 }
+
+
 
 type PatientVitals = {
   age?: number;
@@ -112,61 +157,94 @@ export function VitalsForm({ patients }: { patients: { id: string; full_name: st
   const [patientVitals, setPatientVitals] = useState<PatientVitals>({});
   const [loadingVitals, setLoadingVitals] = useState(false);
 
-  // Load vitals when selected patient changes
+  // Load latest nurse vitals when selected patient changes
   useEffect(() => {
-    if (!selectedPatientId) return;
-    
+    let alive = true;
+
+    if (!selectedPatientId) {
+      setPatientVitals({});
+      return;
+    }
+
     setLoadingVitals(true);
     fetch(`/api/vitals/patient/${selectedPatientId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.vitals && data.vitals.length > 0) {
-          // Use the most recent vitals
-          const latest = data.vitals[0];
+        if (!alive) return;
+
+        const vitals = (data?.vitals ?? []) as any[];
+        const latestNurse = vitals.find((v) => v.source === "nurse") ?? vitals[0];
+
+        if (latestNurse) {
           setPatientVitals({
-            age: latest.age,
-            bp: latest.bp,
-            sg: latest.sg,
-            al: latest.al,
-            su: latest.su,
-            rbc: latest.rbc,
-            pc: latest.pc,
-            pcc: latest.pcc,
-            ba: latest.ba,
-            bgr: latest.bgr,
-            bu: latest.bu,
-            sc: latest.sc,
-            sod: latest.sod,
-            pot: latest.pot,
-            hemo: latest.hemo,
-            pcv: latest.pcv,
-            wc: latest.wc,
-            rc: latest.rc,
-            htn: latest.htn,
-            dm: latest.dm,
-            cad: latest.cad,
-            appet: latest.appet,
-            pe: latest.pe,
-            ane: latest.ane,
-            notes: latest.notes,
+            age: latestNurse.age,
+            bp: latestNurse.bp,
+            sg: latestNurse.sg,
+            al: latestNurse.al,
+            su: latestNurse.su,
+            rbc: latestNurse.rbc,
+            pc: latestNurse.pc,
+            pcc: latestNurse.pcc,
+            ba: latestNurse.ba,
+            bgr: latestNurse.bgr,
+            bu: latestNurse.bu,
+            sc: latestNurse.sc,
+            sod: latestNurse.sod,
+            pot: latestNurse.pot,
+            hemo: latestNurse.hemo,
+            pcv: latestNurse.pcv,
+            wc: latestNurse.wc,
+            rc: latestNurse.rc,
+            htn: latestNurse.htn,
+            dm: latestNurse.dm,
+            cad: latestNurse.cad,
+            appet: latestNurse.appet,
+            pe: latestNurse.pe,
+            ane: latestNurse.ane,
+            notes: latestNurse.notes,
           });
         } else {
-          // No vitals found, reset to empty
           setPatientVitals({});
         }
       })
-      .catch(() => setPatientVitals({}))
-      .finally(() => setLoadingVitals(false));
+      .catch(() => {
+        if (!alive) return;
+        setPatientVitals({});
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoadingVitals(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [selectedPatientId]);
 
-  async function onSubmit(formData: FormData) {
+
+
+  async function onSubmit(formData: FormData): Promise<void> {
     setLoading(true);
-    await fetch("/api/vitals", { 
-      method: "POST", 
-      body: JSON.stringify(Object.fromEntries(formData.entries())) 
+
+    const payload = Object.fromEntries(formData.entries());
+
+    const response = await fetch("/api/vitals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      alert(`Error saving vitals: ${err?.error ? JSON.stringify(err.error) : response.statusText}`);
+      setLoading(false);
+      return;
+    }
+
     window.location.reload();
   }
+
+
 
   const getFieldValue = (fieldName: string): string | number => {
     const fieldKey = fieldName as keyof PatientVitals;
@@ -177,7 +255,14 @@ export function VitalsForm({ patients }: { patients: { id: string; full_name: st
   };
 
   return (
-    <form action={onSubmit} className="health-panel clinical-form">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit(new FormData(e.currentTarget));
+      }}
+      className="health-panel clinical-form"
+    >
+
       <div className="panel-heading">
         <div>
           <p>Nurse entry</p>
@@ -202,24 +287,54 @@ export function VitalsForm({ patients }: { patients: { id: string; full_name: st
       </label>
       {loadingVitals && <p className="form-message">Loading patient vitals...</p>}
       {!loadingVitals && Object.keys(patientVitals).length > 0 && (
-        <p className="form-message" style={{ color: "var(--color-success, #10b981)" }}>
-          Loading most recent vitals for this patient. Update as needed.
-        </p>
+        <div className="rounded-lg bg-green-50 border border-green-300 p-3">
+          <p className="text-sm text-green-800 font-semibold">
+            ✓ Loaded most recent vitals for this patient. Update as needed.
+          </p>
+        </div>
       )}
-      {groups.map((group) => (
-        <fieldset key={group.title} className="clinical-group">
-          <legend>{group.title}</legend>
-          <div>
-            {group.fields.map((field) => (
-              <Field 
-                key={field} 
-                name={field} 
-                value={getFieldValue(field)}
-              />
-            ))}
-          </div>
-        </fieldset>
-      ))}
+      {!loadingVitals && Object.keys(patientVitals).length === 0 && selectedPatientId && (
+        <div className="rounded-lg bg-blue-50 border border-blue-300 p-3">
+          <p className="text-sm text-blue-800 font-semibold">
+            No previous vitals found. Enter new vitals for this patient.
+          </p>
+        </div>
+      )}
+      <div key={selectedPatientId + "::" + String(Object.keys(patientVitals).length ? patientVitals.age ?? "loaded" : "empty")}>
+        {groups.map((group) => (
+          <fieldset key={group.title} className="clinical-group">
+            <legend>{group.title}</legend>
+            <div>
+              {group.fields.map((field) => {
+                const value = getFieldValue(field);
+
+                // dropdown wiring for discrete categorical fields
+                const options =
+                  field === "htn" || field === "dm" || field === "cad" || field === "pe" || field === "ane"
+                    ? YES_NO
+                    : field === "appet"
+                      ? GOOD_POOR
+                      : field === "rbc" || field === "pc"
+                        ? NORMAL_ABNORMAL
+                        : field === "pcc" || field === "ba"
+                          ? PRESENT_NOTPRESENT
+                          : undefined;
+
+                return (
+                  <Field
+                    key={field}
+                    name={field}
+                    value={value}
+                    options={options}
+                  />
+                );
+              })}
+
+            </div>
+          </fieldset>
+        ))}
+      </div>
+
       <label className="clinical-field wide">
         <span>Notes</span>
         <textarea 

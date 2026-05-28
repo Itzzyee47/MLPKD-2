@@ -8,7 +8,6 @@ import {
   CalendarDays,
   ClipboardPlus,
   HeartPulse,
-  Home,
   LineChart,
   LogOut,
   Search,
@@ -21,6 +20,7 @@ import Link from "next/link";
 import { PredictionForm } from "@/components/forms/prediction-form";
 import { RiskBar, RiskPie, Trend } from "@/components/charts/risk-charts";
 import { VitalsForm } from "@/components/forms/vitals-form";
+import { LabForm } from "@/components/forms/lab-form";
 import DoctorUserManagement from "@/components/portal/doctor-user-management";
 import { DoctorRegisterForm } from "@/app/doctor/register/page";
 
@@ -342,101 +342,9 @@ export function DoctorWorkspace({
 
 
 
-type QueueVitals = {
-  id: string;
-  created_at: string;
-  notes?: string | null;
-  patient?: { full_name?: string | null; username?: string | null; email?: string | null };
-  [key: string]: string | number | null | undefined | object;
-};
 
-const labFields = ["age","bp","sg","al","su","rbc","pc","pcc","ba","bgr","bu","sc","sod","pot","hemo","pcv","wc","rc","htn","dm","cad","appet","pe","ane"];
 
-function LabValidationPanel() {
-  const [queue, setQueue] = useState<QueueVitals[]>([]);
-  const [selected, setSelected] = useState("");
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function loadQueue() {
-    const res = await fetch("/api/labs/queue", { cache: "no-store" });
-    const json = await res.json();
-    if (res.ok) {
-      const next = json.queue ?? [];
-      setQueue(next);
-      if (next.length) {
-        const first = selected ? next.find((v: QueueVitals) => v.id === selected) ?? next[0] : next[0];
-        setSelected(first.id);
-        const d: Record<string, string> = {};
-        labFields.forEach((f) => (d[f] = String(first[f] ?? "")));
-        d.notes = String(first.notes ?? "");
-        setDraft(d);
-      } else {
-        setSelected("");
-        setDraft({});
-      }
-    }
-  }
-
-  useEffect(() => { void loadQueue(); }, []);
-
-  useEffect(() => {
-    const current = queue.find((v) => v.id === selected);
-    if (!current) return;
-    const d: Record<string, string> = {};
-    labFields.forEach((f) => (d[f] = String(current[f] ?? "")));
-    d.notes = String(current.notes ?? "");
-    setDraft(d);
-  }, [selected, queue]);
-
-  async function markReady() {
-    if (!selected) return;
-    const payload: Record<string, unknown> = { vitals_id: selected, notes: draft.notes ?? "" };
-    labFields.forEach((f) => {
-      const raw = draft[f];
-      payload[f] = ["rbc","pc","pcc","ba","htn","dm","cad","appet","pe","ane"].includes(f) ? raw : Number(raw);
-    });
-
-    setSubmitting(true);
-    const res = await fetch("/api/labs/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    setMessage(res.ok ? "Lab-updated vitals marked ready for doctor prediction." : (json.error ?? "Validation failed"));
-    if (res.ok) await loadQueue();
-    setSubmitting(false);
-  }
-
-  return (
-    <section className="health-panel">
-      <div className="panel-heading"><div><p>Lab workflow</p><h2>Validate, Update & Mark Ready</h2></div><ClipboardPlus size={22} /></div>
-      <p className="health-subtitle">Select nurse-submitted vitals, review/update values, then mark ready for doctor prediction.</p>
-      {queue.length === 0 ? <p className="form-message">No nurse records pending validation.</p> : (
-        <>
-          <label className="clinical-field wide"><span>Nurse submissions queue</span><select value={selected} onChange={(e) => setSelected(e.target.value)}>
-            {queue.map((v) => <option key={v.id} value={v.id}>{v.patient?.full_name ?? v.patient?.username ?? "Patient"} · {new Date(v.created_at).toLocaleString()}</option>)}
-          </select></label>
-          <div className="profile-grid">
-            {labFields.map((f) => (
-              <label key={f}>
-                {f.toUpperCase()}
-                <input className="input" value={draft[f] ?? ""} onChange={(e) => setDraft((prev) => ({ ...prev, [f]: e.target.value }))} />
-              </label>
-            ))}
-            <label className="wide">Notes<textarea className="input" value={draft.notes ?? ""} onChange={(e) => setDraft((prev) => ({ ...prev, notes: e.target.value }))} /></label>
-          </div>
-          <button className="btn-primary" type="button" onClick={() => void markReady()} disabled={submitting}>{submitting ? "Saving..." : "Save Updates & Mark Ready"}</button>
-        </>
-      )}
-      {message && <p className="form-message">{message}</p>}
-    </section>
-  );
-}
-
-export function LabWorkspace({ profile }: { profile: Profile }) {
+export function LabWorkspace({ patients, profile }: { patients: Patient[]; profile: Profile }) {
   const [tab, setTab] = useState("overview");
   const [stats, setStats] = useState({ totalPatients: 0, withVitals: 0, withPredictions: 0, pendingPrediction: 0, pendingVitals: 0 });
 
@@ -488,7 +396,7 @@ export function LabWorkspace({ profile }: { profile: Profile }) {
           </section>
         </div>
       )}
-      {tab === "validate" && <LabValidationPanel />}
+      {tab === "validate" && <LabForm patients={patients} />}
       {tab === "profile" && <ProfilePanel profile={profile} />}
     </PortalFrame>
   );

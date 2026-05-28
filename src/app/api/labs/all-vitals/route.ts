@@ -13,13 +13,5 @@ export async function GET() {
     .limit(100);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  
-  // Format vitals to include source status for UI display
-  const vitalsWithStatus = (data ?? []).map((vital: any) => ({
-    ...vital,
-    sourceStatus: vital.source === "nurse" ? "not_submitted" : "submitted",
-    sourceName: vital.source === "nurse" ? "Nurse Entry (Not Yet Submitted)" : "Lab Submission (Ready for Review)",
-  }));
-  
-  return NextResponse.json({ vitals: vitalsWithStatus });
+  return NextResponse.json({ vitals: data ?? [] });
 }
