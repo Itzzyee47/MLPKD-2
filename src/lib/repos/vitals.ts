@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function createVitals(payload: Record<string, unknown>) {
   const supabase = await createClient();
