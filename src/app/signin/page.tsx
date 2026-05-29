@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 const DEFAULT_ROLES = [
   { email: "doctor@mlpkd.local", password: "Doctor@123", label: "🩺 Doctor", role: "doctor" },
   { email: "nurse@mlpkd.local", password: "Nurse@123", label: "💊 Nurse", role: "nurse" },
-  { email: "lab@mlpkd.local", password: "Lab@1234", label: "🔬 Lab Tech", role: "lab" },
+  { email: "lab@gmail.com", password: "Lab@1234", label: "🔬 Lab Tech", role: "lab" },
   { email: "patient@mlpkd.local", password: "Patient@123", label: "🧑 Patient", role: "patient" },
 ];
 
